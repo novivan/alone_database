@@ -1,3 +1,6 @@
+#ifndef CELLS_H
+#define CELLS_H
+
 #include <string>
 #include <typeinfo>
 
@@ -6,8 +9,10 @@ class Cell{
 public:
     virtual ~Cell() = 0;
     virtual const void* get_data() const = 0;
-    virtual bool operator==(Cell &other) const;
+    virtual bool operator==(Cell &other) const = 0;
 };
+
+inline Cell::~Cell() {}
 
 class CellInt : public Cell
 {
@@ -61,6 +66,7 @@ public:
     const void* get_data() const override {
         return &data;
     }
+    
 };
 
 class CellString : public Cell
@@ -88,6 +94,7 @@ public:
     const void* get_data() const override {
         return &data;
     }
+    
 };
 
 class CellBytes : public Cell
@@ -97,6 +104,14 @@ public:
                       //ну или переделаем без потерь памяти с глиномесием
     CellBytes() = default;
     CellBytes(std::string str) : data(str){}
+    CellBytes(std::vector<uint8_t> bytes) { //в числах переданы байты
+        data.reserve(8 * bytes.size());
+        for (uint8_t byte : bytes) {
+            for (int j = 7; j >= 0; --j) {
+                data.push_back((byte & (1 << j)) ? '1' : '0');
+            }
+        }
+    }
 
     bool operator==(Cell &other) const override 
     {
@@ -116,4 +131,7 @@ public:
     const void* get_data() const override {
         return &data;
     }
+    
 };
+
+#endif //CELLS_H
