@@ -19,6 +19,8 @@ public:
     std::string name;
     std::unordered_map<std::string, Column> columns;
 
+    Table() = default;
+
     Table(const std::string& tableName) : name(tableName) {
         columns.clear();
     }
@@ -178,6 +180,45 @@ public:
 
         return result;
     }
+
+    void printTable() {
+        std::cout << "Table: " << name << std::endl;
+        for (const auto& column : columns) {
+            std::cout << column.first << "  ";
+            if (column.second.type == 3) {
+                std:: cout << "                                                      ";
+            }
+        }
+        std::cout << std::endl;
+
+        size_t numRows = columns.begin()->second.cells.size();
+        for (size_t i = 0; i < numRows; ++i) {
+            for (const auto& column : columns) {
+                if (column.second.cells[i] == nullptr) {
+                    std::cerr << "Error: nullptr detected in column '" << column.first << "' at row " << i << std::endl;
+                    continue;
+                }
+                if (column.second.type == 0) {
+                    std::cout << std::static_pointer_cast<CellInt>(column.second.cells[i])->data << "\t";
+                } else if (column.second.type == 1) {
+                    std::cout << std::static_pointer_cast<CellBool>(column.second.cells[i])->data << "\t";
+                } else if (column.second.type == 2) {
+                    std::cout << std::static_pointer_cast<CellString>(column.second.cells[i])->data << "\t";
+                } else if (column.second.type == 3) {
+                    auto bytes = std::static_pointer_cast<CellBytes>(column.second.cells[i])->data;
+                    for (auto byte : bytes) {
+                        //std::cout << std::hex << static_cast<int>(byte);
+                        std::cout << byte;
+                    }
+                    std::cout << "\t";
+                }
+            }
+            std::cout << std::endl;
+        }
+        std::cout << std::endl << std::endl << std::endl << std::endl;
+    }
+
+
     ~Table() = default;
 };
 

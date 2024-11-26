@@ -5,48 +5,51 @@
 #include <unordered_map>
 #include <functional>
 
-//это закомменчено, потому что пока не реализовано
-//#include <../include/database.h>
 
-//а это временно, пока databse не реализовано
-#include <../include/table.h>
+#include <../include/database.h>
 
 
-void printTable(const Table& table) {
-    std::cout << "Table: " << table.name << std::endl;
-    for (const auto& column : table.columns) {
-        std::cout << column.first << "  ";
-        if (column.second.type == 3) {
-            std:: cout << "                                                      ";
-        }
-    }
-    std::cout << std::endl;
+//#include <../include/table.h>
 
-    size_t numRows = table.columns.begin()->second.cells.size();
-    for (size_t i = 0; i < numRows; ++i) {
-        for (const auto& column : table.columns) {
-            if (column.second.cells[i] == nullptr) {
-                std::cerr << "Error: nullptr detected in column '" << column.first << "' at row " << i << std::endl;
-                continue;
-            }
-            if (column.first == "id") {
-                std::cout << std::static_pointer_cast<CellInt>(column.second.cells[i])->data << "\t";
-            } else if (column.first == "login") {
-                std::cout << std::static_pointer_cast<CellString>(column.second.cells[i])->data << "\t";
-            } else if (column.first == "is_admin") {
-                std::cout << std::static_pointer_cast<CellBool>(column.second.cells[i])->data << "\t";
-            } else if (column.first == "password_hash") {
-                auto bytes = std::static_pointer_cast<CellBytes>(column.second.cells[i])->data;
-                for (auto byte : bytes) {
-                    std::cout << std::hex << static_cast<int>(byte);
+void testUpdate(Database& db) {
+    std::cout << "Testing UPDATE..." << std::endl;
+
+    // Создаем словарь трансформаций
+    std::unordered_map<std::string, std::function<std::shared_ptr<Cell>(std::shared_ptr<Cell>)>> transformations = {
+        {"login", [](std::shared_ptr<Cell> cell) {
+            auto strCell = std::static_pointer_cast<CellString>(cell);
+            return std::make_shared<CellString>(strCell->data + "_updated");
+        }},
+        {"is_admin", [](std::shared_ptr<Cell> cell) {
+            auto boolCell = std::static_pointer_cast<CellBool>(cell);
+            return std::make_shared<CellBool>(!boolCell->data); // инвертируем значение
+        }}
+    };
+
+    // Обновляем данные
+    db.update("users", transformations, [](const Line& line) {
+        return std::static_pointer_cast<CellString>(line.cells.at("login"))->data == "vasya";
+    });
+
+    std::cout << "After UPDATE:" << std::endl;
+    db.printTable("users");
+    //printTable(db.tables["users"]);
+
+    // Проверяем результат
+    for (const auto& [columnName, column] : db.tables["users"].columns) {
+        for (const auto& cell : column.cells) {
+            if (columnName == "login") {
+                auto strCell = std::static_pointer_cast<CellString>(cell);
+                if (strCell->data == "vasya_updated") {
+                    std::cout << "UPDATE test passed: login field updated correctly" << std::endl;
+                    return;
                 }
-                std::cout << "\t";
             }
         }
-        std::cout << std::endl;
     }
-    std::cout << std::endl << std::endl << std::endl << std::endl;
+    throw std::runtime_error("UPDATE test failed: login field not updated correctly");
 }
+
 
 
 
@@ -56,16 +59,20 @@ void printTable(const Table& table) {
 
 int main() {
     // Создаем таблицу
-    Table users("users");
-
-    //printTable(users);
+    //Table users("users");
+    Database db;
+    db.createTable("users", {{"id", 0}, {"is_admin", 1}, {"login", 2}, {"password_hash", 3}});
+    //users.printTable();
 
     std::cout << "testTableCreation passed." << std::endl;
-    // Добавляем столбцы
+    
+    /*// Добавляем столбцы
     users.addColumn("id", 0);
     users.addColumn("is_admin", 1);
     users.addColumn("login", 2);
     users.addColumn("password_hash", 3);
+    */
+    db.printTable("users");
 
     std::cout << "testAddColumn passed." << std::endl;
     
@@ -75,8 +82,12 @@ int main() {
     line1.addCell("is_admin", std::make_shared<CellBool>(false));
     line1.addCell("login", std::make_shared<CellString>("vasya"));
     line1.addCell("password_hash", std::make_shared<CellBytes>(std::vector<uint8_t>{0xde, 0xad, 0xbe, 0xef}));
-    users.insert(line1);
+    //db.tables["users"].insert(line1);
+    db.insert("users", line1);
+    //users.insert(line1);
 
+    db.printTable("users");
+    //users.printTable();
     std::cout << "testAddRow passed." << std::endl;
 
 
@@ -86,27 +97,67 @@ int main() {
     line2.addCell("is_admin", std::make_shared<CellBool>(true));
     line2.addCell("login", std::make_shared<CellString>("admin"));
     line2.addCell("password_hash", std::make_shared<CellBytes>(std::vector<uint8_t>{0xca, 0xfe, 0xba, 0xbe}));
-    users.insert(line2);
+    //db.tables["users"].insert(line2);
+    db.insert("users", line2);
+    //users.insert(line2);
 
+    db.printTable("users");
+    //users.printTable();
     std::cout << "second testAddRow passed." << std::endl;
+
+    std::cout << "testSaveToFile:\n";
+    // Создаем вторую таблицу
+    db.createTable("products", {{"product_id", 0}, {"product_name", 2}, {"price", 0}});
+
+    // Вставляем строки во вторую таблицу
+    Line product1;
+    product1.addCell("product_id", std::make_shared<CellInt>(1));
+    product1.addCell("product_name", std::make_shared<CellString>("Laptop"));
+    product1.addCell("price", std::make_shared<CellInt>(1000));
+    db.insert("products", product1);
+
+    Line product2;
+    product2.addCell("product_id", std::make_shared<CellInt>(2));
+    product2.addCell("product_name", std::make_shared<CellString>("Smartphone"));
+    product2.addCell("price", std::make_shared<CellInt>(500));
+    db.insert("products", product2);
+
+    db.printTable("products");
+
+
+
+
+    db.saveToFile("../data.csv");
+    //db.saveToFile("../data.csv");
+    std::cout << "testSaveToFile passed.\n";
     
-    printTable(users);
+
+    std::cout << "testClearBase:\n";
+    db.clear();
+    std::cout << "db.tables.size() = " << db.tables.size() << std::endl;
+    
+    db.readFromFile("../data.csv");
+    std::cout << "printing readed table: \n";
+    std::cout << "db.tables.size() = " << db.tables.size() << std::endl;
+    for (auto& [tableName, table] : db.tables) {
+        db.printTable(tableName);
+    }
+    std::cout << "testReadFromFile passed.\n";
+
+
+    
 
     std::cout << "testPrintTable passed." << std::endl;
     
-    auto selected = users.select("selected_users", {"id", "login"}, [](const Line& line) {
-        try {
-            bool isAdmin = std::static_pointer_cast<CellBool>(line.cells.at("is_admin"))->data;
-            int id = std::static_pointer_cast<CellInt>(line.cells.at("id"))->data;
-            return isAdmin || id < 10;
-        } catch (const std::exception& e) {
-            std::cerr << "Error: " << e.what() << std::endl;
-            return false;
-        }
+    auto selected = db.select("selected_users", "users", {"id", "login"}, [](const Line& line) {
+        bool isAdmin = std::static_pointer_cast<CellBool>(line.cells.at("is_admin"))->data;
+        int id = std::static_pointer_cast<CellInt>(line.cells.at("id"))->data;
+        return isAdmin || id < 10;
     });
     // Печатаем результаты SELECT
     std::cout << "Selected users:" << std::endl;
-    printTable(selected);
+    //selected.printTable();
+    db.printTable("selected_users");
 
     // Выполняем UPDATE
     std::cout << "Testing UPDATE..." << std::endl;
@@ -124,23 +175,30 @@ int main() {
     };
 
     // Обновляем данные
-    users.update(transformations, [](const Line& line) {
+    db.update("users", transformations, [](const Line& line) {
         return std::static_pointer_cast<CellString>(line.cells.at("login"))->data == "vasya";
     });
 
-    std::cout << "After UPDATE:" << std::endl;
-    printTable(users);
     
+    std::cout << "After UPDATE:" << std::endl;
+    //users.printTable();
+    db.printTable("users");
+
     // Выполняем DELETE
-    users.remove([](const Line& line) {
+
+    db.remove("users", [](const Line& line) {
         return static_pointer_cast<CellString>(line.cells.at("login"))->data == "admin";
     });
 
     // печатаем результаты DELETE
     std::cout << "Users after delete:" << std::endl;
-    printTable(users);
-    
-    users.~Table();
+    //users.printTable();
+    db.printTable("users");
+
+
+    //db.writeToFile("../data.csv");
+    db.~Database();
+    //users.~Table();
 
     std::cout << "All tests passed." << std::endl;
 

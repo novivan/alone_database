@@ -106,6 +106,7 @@ public:
     CellBytes(std::string str) : data(str){}
     CellBytes(std::vector<uint8_t> bytes) { //в числах переданы байты
         data.reserve(8 * bytes.size());
+        data.clear();
         for (uint8_t byte : bytes) {
             for (int j = 7; j >= 0; --j) {
                 data.push_back((byte & (1 << j)) ? '1' : '0');
